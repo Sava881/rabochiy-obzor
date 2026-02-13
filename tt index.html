@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Рабочий Обзор</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff7eb3">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Roboto',sans-serif;}
+body{background:linear-gradient(135deg,#ff7eb3,#65d6ff,#ffd966);color:white;min-height:100vh;display:flex;flex-direction:column;align-items:center;transition:background 1s ease-in-out;}
+.container{width:90%;max-width:500px;margin-top:50px;text-align:center;animation:fadeIn 1s ease forwards;}
+input,button,textarea{width:80%;padding:12px;margin:8px 0;border:none;border-radius:12px;font-size:16px;transition:transform 0.2s;}
+button{cursor:pointer;font-weight:bold;background:white;color:#333;}
+button:hover{transform:scale(1.05);background:#fff8;}
+.hidden{display:none;}
+.menu{position:fixed;bottom:0;width:100%;background:rgba(0,0,0,0.4);display:flex;justify-content:space-around;padding:15px 0;font-size:28px;backdrop-filter:blur(5px);transition:all 0.3s ease;}
+.menu div{transition:transform 0.2s;cursor:pointer;position:relative;}
+.menu div:hover{transform:scale(1.2);}
+.menu .badge{position:absolute;top:-5px;right:-10px;background:red;color:white;border-radius:50%;font-size:14px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;animation:pulse 1s infinite alternate;}
+@keyframes pulse{from{transform:scale(1);}to{transform:scale(1.2);}}
+.card{background:rgba(255,255,255,0.2);padding:20px;border-radius:15px;margin:10px 0;box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:transform 0.3s,opacity 0.3s;}
+.card.enter{animation:slideDown 0.5s ease forwards;}
+.card.accepted{transform:translateX(120%) rotate(10deg);opacity:0;transition:transform 0.7s,opacity 0.7s;}
+.card.declined{transform:translateX(-120%) rotate(-10deg);opacity:0;transition:transform 0.7s,opacity 0.7s;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-50px);}to{opacity:1;transform:translateY(0);}}
+.notification{position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.8);color:white;padding:15px 20px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.5);opacity:0;transform:translateX(100%);transition:transform 0.5s ease,opacity 0.5s ease;z-index:1000;}
+.notification.show{opacity:1;transform:translateX(0);}
+@media(max-width:600px){input,button,textarea{width:95%;font-size:18px;}.menu{font-size:32px;padding:20px 0;}}
+#content{margin-bottom:70px;}
+</style>
+</head>
+<body>
+
+<h1 style="animation: fadeIn 1s;">🚀 Рабочий Обзор</h1>
+
+<div id="auth" class="container">
+<h2>Регистрация / Вход</h2>
+<input id="phone" placeholder="Телефон"><br>
+<input id="password" type="password" placeholder="Пароль"><br>
+<button onclick="register()">Зарегистрироваться</button>
+<button onclick="login()">Войти</button>
+<p><a href="#" onclick="showAdmin()" style="color:white;">Вход для админов</a></p>
+</div>
+
+<div id="adminAuth" class="container hidden">
+<h2>Вход администратора</h2>
+<input id="adminLogin" placeholder="Логин"><br>
+<input id="adminPass" type="password" placeholder="Пароль"><br>
+<button onclick="adminLogin()">Войти</button>
+</div>
+
+<div id="workerPanel" class="container hidden">
+<h2 id="welcome"></h2>
+<div id="content"></div>
+<div class="menu">
+<div onclick="showProfile()">👤</div>
+<div onclick="showOrders()">📦</div>
+<div onclick="readyToWork()">📝</div>
+<div onclick="showNotifications()">🔔<div id="notifBadge" class="badge hidden">0</div></div>
+<div onclick="logout()">🚪</div>
+</div>
+</div>
+
+<div id="adminPanel" class="container hidden">
+<h2>Админ панель</h2>
+<div>
+<button onclick="createOrder()">Создать заказ</button>
+<button onclick="createPost()">Создать пост</button>
+<button onclick="logout()">Выйти</button>
+</div>
+<h3>Заказы</h3>
+<div id="adminOrders"></div>
+<h3>Новостная лента</h3>
+<div id="newsFeed"></div>
+</div>
+
+<div id="notifPanel" class="container hidden">
+<h3>Уведомления</h3>
+<div id="notifContent"></div>
+<button onclick="closeNotifications()">Закрыть</button>
+</div>
+
+<div id="toast" class="notification"></div>
+
+<script>
+let users=JSON.parse(localStorage.getItem("users"))||[];
+let orders=JSON.parse(localStorage.getItem("orders"))||[];
+let posts=JSON.parse(localStorage.getItem("posts"))||[];
+let notifications=JSON.parse(localStorage.getItem("notifications"))||[];
+let currentUser=null;
+const ADMIN_LOGIN="admin";
+const ADMIN_PASS="12345";
+
+// Запрос разрешения на уведомления
+if("Notification" in window){if(Notification.permission!=="granted"){Notification.requestPermission();}}
+
+// Push-уведомление
+function pushNotify(title,body){if(Notification.permission==="granted"){new Notification(title,{body});} showToast(body);}
+function showToast(message){const toast=document.createElement("div");toast.innerText=message;toast.className="notification show";document.body.appendChild(toast);setTimeout(()=>{toast.remove();},3000);}
+function save(){localStorage.setItem("users",JSON.stringify(users));localStorage.setItem("orders",JSON.stringify(orders));localStorage.setItem("posts",JSON.stringify(posts));localStorage.setItem("notifications",JSON.stringify(notifications));}
+
+// Регистрация/вход
+function register(){let phone=phoneInput.value;let pass=password.value;if(users.find(u=>u.phone===phone)){alert("Пользователь уже есть");return;}users.push({phone,pass,ready:false});save();alert("Регистрация успешна!");}
+function login(){let phone=phoneInput.value;let pass=password.value;let user=users.find(u=>u.phone===phone&&u.pass===pass);if(!user){alert("Неверные данные");return;}currentUser=user;auth.classList.add("hidden");workerPanel.classList.remove("hidden");welcome.innerText="Добро пожаловать, "+currentUser.phone;showProfile();updateNotifBadge();}
+function adminLogin(){if(adminLoginInput.value===ADMIN_LOGIN&&adminPass.value===ADMIN_PASS){showAdminPanel();}else alert("Ошибка");}
+function showAdmin(){auth.classList.add("hidden");adminAuth.classList.remove("hidden");}
+function showWorker(){auth.classList.add("hidden");workerPanel.classList.remove("hidden");welcome.innerText="Добро пожаловать, "+currentUser.phone;showProfile();updateNotifBadge();}
+function showAdminPanel(){adminAuth.classList.add("hidden");adminPanel.classList.remove("hidden");updateAdminOrders();updateNewsFeed();}
+
+// Рабочий
+function showProfile(){content.innerHTML=`<div class="card enter">Телефон: ${currentUser.phone}<br>Статус: ${currentUser.ready?"Готов к работе":"Не готов"}</div>`;}
+function readyToWork(){currentUser.ready=true;save();showToast("Вы готовы к работе!");showProfile();}
+function showOrders(){let available=orders.length?orders.map(o=>`<div class="card enter" id="order-${o.replace(/\s/g,'')}">${o}<br><button onclick="acceptOrder('${o}')">Принять</button><button onclick="declineOrder('${o}')">Отклонить</button></div>`).join(""):"Нет заказов";content.innerHTML=available;}
+function acceptOrder(o){let el=document.getElementById("order-"+o.replace(/\s/g,''));el.classList.add("accepted");setTimeout(()=>el.remove(),700);pushNotify("Заказ принят","Вы приняли заказ: "+o);}
+function declineOrder(o){let el=document.getElementById("order-"+o.replace(/\s/g,''));el.classList.add("declined");setTimeout(()=>el.remove(),700);pushNotify("Заказ отклонён","Вы отклонили заказ: "+o);}
+
+// Админ: заказы
+function createOrder(){let text=prompt("Введите описание заказа");if(text){orders.push(text);save();updateAdminOrders();addNotification("Новый заказ: "+text);pushNotify("Новый заказ",text);}}
+function editOrder(index){let newText=prompt("Изменить заказ:",orders[index]);if(newText){orders[index]=newText;save();updateAdminOrders();addNotification("Заказ изменён: "+newText);pushNotify("Заказ изменён",newText);}}
+function deleteOrder(index){if(confirm("Удалить заказ?")){let removed=orders.splice(index,1);save();updateAdminOrders();addNotification("Заказ удалён: "+removed);pushNotify("Заказ удалён",removed);}}
+function updateAdminOrders(){adminOrders.innerHTML=orders.length?orders.map((o,i)=>`<div class="card enter">${o}<br><button onclick="editOrder(${i})">Редактировать</button><button onclick="deleteOrder(${i})">Удалить</button></div>`).join(""):"Нет заказов";}
+
+// Админ: посты
+function createPost(){let desc=prompt("Описание поста:");let img=prompt("Ссылка на изображение (или пусто):");let vid=prompt("Ссылка на видео (или пусто):");if(desc){posts.unshift({desc,img,vid,date:new Date().toLocaleString()});save();updateNewsFeed();addNotification("Новый пост: "+desc);pushNotify("Новый пост",desc);}}
+function updateNewsFeed(){newsFeed.innerHTML=posts.length?posts.map(p=>`<div class="card enter">${p.img?`<img src="${p.img}" style="width:100%;border-radius:12px;"><br>`:""}${p.vid?`<video src="${p.vid}" controls style="width:100%;border-radius:12px;"></video><br>`:""}${p.desc}<br><small>${p.date}</small></div>`).join(""):"Нет постов";}
+
+// Уведомления
+function addNotification(text){notifications.push({text,date:new Date().toLocaleString()});save();updateNotifBadge();}
+function updateNotifBadge(){let badge=document.getElementById("notifBadge");if(notifications.length>0){badge.innerText=notifications.length;badge.classList.remove("hidden");}else{badge.classList.add("hidden");}}
+function showNotifications(){workerPanel.classList.add("hidden");notifPanel.classList.remove("hidden");let contentHTML=notifications.length?notifications.map(n=>`<div class="card enter">${n.text}<br><small>${n.date}</small></div>`).join(""):"Нет уведомлений";notifContent.innerHTML=contentHTML;notifications=[];save();updateNotifBadge();}
+function closeNotifications(){notifPanel.classList.add("hidden");workerPanel.classList.remove("hidden");}
+function logout(){location.reload();}
+
+const phoneInput=document.getElementById("phone");
+const adminLoginInput=document.getElementById("adminLogin");
+
+// Регистрация сервис-воркера
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(reg=>console.log('SW зарегистрирован',reg)).catch(err=>console.log('Ошибка SW',err));}
+</script>
+
+</body>
+</html>
